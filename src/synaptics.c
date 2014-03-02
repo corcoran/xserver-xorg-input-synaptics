@@ -3122,7 +3122,35 @@ HandleState(InputInfoPtr pInfo, struct SynapticsHwState *hw, CARD32 now,
      * like flicker in scrolling or noise motion. */
     filter_jitter(priv, &hw->x, &hw->y);
 
+    /* validate all the multitouches and remove touches outside active area */
     inside_active_area = is_inside_active_area(priv, hw->x, hw->y);
+    if (para->clickpad) {
+	hw->numFingers = 0;
+        for (int i = 0; i < hw->num_mt_mask; i++) {
+            ValuatorMask *f1;
+            Bool mt_inside;
+            double x1, y1;
+
+            if (hw->slot_state[i] == SLOTSTATE_EMPTY ||
+                    hw->slot_state[i] == SLOTSTATE_CLOSE)
+                continue;
+
+            f1 = hw->mt_mask[i];
+            x1 = valuator_mask_get_double(f1, 0);
+            y1 = valuator_mask_get_double(f1, 1);
+            mt_inside = is_inside_active_area(priv, x1, y1);
+            if (!mt_inside) {
+                hw->slot_state[i] = SLOTSTATE_EMPTY;
+                continue;
+            }
+            if (!inside_active_area) {
+                inside_active_area = TRUE;
+                hw->x = x1;
+                hw->y = y1;
+            }
+	    hw->numFingers++;
+        }
+    }
 
     /* Ignore motion *starting* inside softbuttonareas */
     if (priv->finger_state < FS_TOUCHED)
